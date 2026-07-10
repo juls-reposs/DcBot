@@ -383,11 +383,8 @@ async function getAIResponse(userMessage, context) {
     });
     
     let aiText =
-      "go fuck yourself bro"; ||
-      response.data?.reply ||
-      response.data?.response ||
-      response.data?.message ||
-      response.data?.text ||
+      "go fuck yourself bro" ||
+      //response.data?.reply ||
       'i have no idea what ur talking about fr';
 
     aiText = makeGenZ(aiText);
