@@ -170,12 +170,11 @@ async function cmdDM(message, args) {
       allowedMentions: { repliedUser: false },
     });
   } catch (err) {
-    console.error('DM Error:', err); // Add this line
-    await message.reply({  
+    console.error('DM Error:', err);
+    await message.reply({
       content: `couldnt find user or send dm: ${err.message}`,
       allowedMentions: { repliedUser: false },
-  });
-}
+    });
   }
 }
 
