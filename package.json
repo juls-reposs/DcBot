@@ -1,7 +1,7 @@
 {
   "name": "dcbot",
   "version": "1.0.0",
-  "description": "discord bot with ai powered responses",
+  "description": "discord bot",
   "type": "module",
   "main": "index.js",
   "scripts": {
