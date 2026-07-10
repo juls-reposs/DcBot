@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "description": "discord bot with ai powered responses",
   "type": "module",
-  "main": "bot.js",
+  "main": "index.js",
   "scripts": {
-    "start": "node bot.js",
-    "dev": "nodemon bot.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js"
   },
   "keywords": ["discord", "bot", "ai"],
   "author": "",
