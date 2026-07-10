@@ -358,7 +358,7 @@ async function getAIResponse(userMessage, context) {
     const history = [];
     history.push({
       role: 'system',
-      content: 'You are a helpful assistant. Reply in a concise, casual Gen-Z style when appropriate.',
+      content: 'You are a helpful assistant. Reply in a concise, casual Gen-Z style when appropriate. use filler words like 'fr', 'ngl', 'lowk', 'highk', 'ong', 'bet', 'fr'',
     });
 
     if (context) {
@@ -371,8 +371,11 @@ async function getAIResponse(userMessage, context) {
     history.push({ role: 'user', content: userMessage });
 
     const payload = {
-      message: userMessage,
-      history,
+      system: 'You are a helpful assistant. Reply in a concise, casual Gen-Z style when appropriate.',
+      history: [
+        ...history,
+        { role: 'user', content: userMessage }
+      ],
     };
 
     const response = await axios.post(process.env.AI_PROXY, payload, {
@@ -404,7 +407,7 @@ function makeGenZ(text) {
     text = text.replace(/\.+$/, '');
   }
 
-  const fillers = ['fr', 'ngl', 'lowkey', 'highkey', 'no cap', 'bet', 'frfr'];
+  const fillers = ['fr', 'ngl', 'lowk', 'highk', 'ong', 'bet', 'fr'];
   if (Math.random() > 0.6) {
     const filler = fillers[Math.floor(Math.random() * fillers.length)];
     text = text + ` ${filler}`;
