@@ -14,10 +14,8 @@ const client = new Client({
 const PREFIX = '!';
 const MAX_MEMORY = 20;
 
-// message memory: { userId: [{ content, author, timestamp }] }
 const messageMemory = new Map();
 
-// user message cache for dm/edit/rm commands: { userId: { messageId: { content, sentBy, channelId } } }
 const userMessageCache = new Map();
 
 client.once('ready', () => {
@@ -27,13 +25,10 @@ client.once('ready', () => {
 
 client.on('messageCreate', async (message) => {
   try {
-    // ignore bot's own messages
     if (message.author.bot) return;
 
-    // track message in memory
     trackMessage(message);
 
-    // handle DMs
     if (message.channel.isDMBased()) {
       if (message.content.startsWith(PREFIX)) {
         await handleCommand(message);
@@ -43,14 +38,12 @@ client.on('messageCreate', async (message) => {
       return;
     }
 
-    // handle server messages
     const isMentioned = message.mentions.has(client.user);
     const isReply = message.reference !== null;
 
     if (message.content.startsWith(PREFIX)) {
       await handleCommand(message);
     } else if (isMentioned || isReply) {
-      // check if replying to bot
       if (isReply) {
         try {
           const repliedTo = await message.channel.messages.fetch(message.reference.messageId);
@@ -58,7 +51,6 @@ client.on('messageCreate', async (message) => {
             await handleAIResponse(message);
           }
         } catch (err) {
-          // couldnt fetch replied message, ignore
         }
       } else if (isMentioned) {
         await handleAIResponse(message);
@@ -73,7 +65,6 @@ async function handleAIResponse(message) {
   try {
     await message.channel.sendTyping();
 
-    // get last 20 messages for context (excluding commands)
     const context = getMessageContext(message.author.id);
     const userMessage = message.content
       .replace(`<@${client.user.id}>`, '')
@@ -147,8 +138,7 @@ async function cmdDM(message, args) {
   try {
     const user = await client.users.fetch(userId);
     const sentMessage = await user.send(messageContent);
-
-    // cache the message
+    
     if (!userMessageCache.has(userId)) {
       userMessageCache.set(userId, {});
     }
@@ -193,7 +183,6 @@ async function cmdRM(message, args) {
 
     const cachedMsg = userMessageCache.get(userId)[messageId];
 
-    // check if sender is the one who sent the command
     if (cachedMsg.sentBy !== message.author.id) {
       await message.reply({
         content: `only the sender can delete this message`,
@@ -244,7 +233,6 @@ async function cmdEdit(message, args) {
 
     const cachedMsg = userMessageCache.get(userId)[messageId];
 
-    // check if sender is the one who sent the command
     if (cachedMsg.sentBy !== message.author.id) {
       await message.reply({
         content: `only the sender can edit this message`,
@@ -257,7 +245,6 @@ async function cmdEdit(message, args) {
     const msg = await dmChannel.messages.fetch(messageId);
     await msg.edit(newContent);
 
-    // update cache
     userMessageCache.get(userId)[messageId].content = newContent;
 
     await message.reply({
@@ -319,7 +306,6 @@ function trackMessage(message) {
     timestamp: Date.now(),
   });
 
-  // keep only last 20 messages
   if (memory.length > MAX_MEMORY) {
     memory.shift();
   }
@@ -339,7 +325,7 @@ async function getAIResponse(userMessage, context) {
 
     let aiText = response.data.response || response.data.message || 'i have no idea what ur talking about fr';
 
-    // make it gen z style - remove excessive punctuation, add casual language
+    // make it gen z style 
     aiText = makeGenZ(aiText);
 
     return aiText;
@@ -350,17 +336,14 @@ async function getAIResponse(userMessage, context) {
 }
 
 function makeGenZ(text) {
-  // remove excessive punctuation
-  text = text.replace(/\.{2,}/g, '.'); // multiple periods to one
-  text = text.replace(/!{2,}/g, '!'); // multiple exclamation to one
-  text = text.replace(/\?{2,}/g, '?'); // multiple question marks to one
+  text = text.replace(/\.{2,}/g, '.');
+  text = text.replace(/!{2,}/g, '!');
+  text = text.replace(/\?{2,}/g, '?'); 
 
-  // randomly remove some punctuation at the end
   if (Math.random() > 0.5) {
     text = text.replace(/\.+$/, '');
   }
 
-  // add casual gen z filler words occasionally
   const fillers = ['fr', 'ngl', 'lowkey', 'highkey', 'no cap', 'bet', 'frfr'];
   if (Math.random() > 0.6) {
     const filler = fillers[Math.floor(Math.random() * fillers.length)];
