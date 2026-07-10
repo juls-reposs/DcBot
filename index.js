@@ -383,7 +383,7 @@ async function getAIResponse(userMessage, context) {
     });
     
     let aiText =
-      "go fuck yourself bro"
+      "go fuck yourself bro"; ||
       response.data?.reply ||
       response.data?.response ||
       response.data?.message ||
