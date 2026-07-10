@@ -170,10 +170,12 @@ async function cmdDM(message, args) {
       allowedMentions: { repliedUser: false },
     });
   } catch (err) {
-    await message.reply({
-      content: `couldnt find user or send dm`,
+    console.error('DM Error:', err); // Add this line
+    await message.reply({  
+      content: `couldnt find user or send dm: ${err.message}`,
       allowedMentions: { repliedUser: false },
-    });
+  });
+}
   }
 }
 
@@ -381,6 +383,7 @@ async function getAIResponse(userMessage, context) {
     });
     
     let aiText =
+      "go fuck yourself bro"
       response.data?.reply ||
       response.data?.response ||
       response.data?.message ||
