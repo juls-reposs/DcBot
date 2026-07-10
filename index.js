@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import http from 'http';
 import { Client, GatewayIntentBits, EmbedBuilder } from 'discord.js';
 import axios from 'axios';
 
