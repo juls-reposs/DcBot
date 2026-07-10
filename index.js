@@ -119,6 +119,9 @@ async function handleCommand(message) {
       case 'edit':
         await cmdEdit(message, args);
         break;
+      case 'clear':
+        await cmdClear(message);
+        break;
       case 'help':
         await cmdHelp(message);
         break;
@@ -273,6 +276,21 @@ async function cmdEdit(message, args) {
   }
 }
 
+async function cmdClear(message) {
+  try {
+    messageMemory.delete(message.author.id);
+    await message.reply({
+      content: `✓ cleared your ai memory`,
+      allowedMentions: { repliedUser: false },
+    });
+  } catch (err) {
+    await message.reply({
+      content: `couldnt clear memory`,
+      allowedMentions: { repliedUser: false },
+    });
+  }
+}
+
 async function cmdHelp(message) {
   const embed = new EmbedBuilder()
     .setColor(0x00ff00)
@@ -291,6 +309,11 @@ async function cmdHelp(message) {
       {
         name: `${PREFIX}edit <userid> <messageid> <newmessage>`,
         value: 'edit a dm you sent',
+        inline: false,
+      },
+      {
+        name: `${PREFIX}clear`,
+        value: 'clear your ai conversation memory',
         inline: false,
       },
       {
