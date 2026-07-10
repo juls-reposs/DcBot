@@ -379,8 +379,9 @@ async function getAIResponse(userMessage, context) {
       headers: { 'Content-Type': 'application/json' },
       timeout: 15000,
     });
-
+    
     let aiText =
+      response.data?.reply ||
       response.data?.response ||
       response.data?.message ||
       response.data?.text ||
