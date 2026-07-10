@@ -358,7 +358,7 @@ async function getAIResponse(userMessage, context) {
     const history = [];
     history.push({
       role: 'system',
-      content: 'You are a helpful assistant. Reply in a concise, casual Gen-Z style when appropriate. use filler words like 'fr', 'ngl', 'lowk', 'highk', 'ong', 'bet', 'fr'',
+      content: "You are a helpful assistant. Reply in a concise, casual Gen-Z style when appropriate. use filler words like 'fr', 'ngl', 'lowk', 'highk', 'ong', 'bet', 'fr'",
     });
 
     if (context) {
