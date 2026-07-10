@@ -1,13 +1,22 @@
 {
-  "name": "discord-ai-bot",
+  "name": "dcbot",
   "version": "1.0.0",
+  "description": "discord bot with ai powered responses",
   "type": "module",
-  "main": "index.js",
+  "main": "bot.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node bot.js",
+    "dev": "nodemon bot.js"
   },
+  "keywords": ["discord", "bot", "ai"],
+  "author": "",
+  "license": "MIT",
   "dependencies": {
     "discord.js": "^14.21.0",
+    "axios": "^1.6.0",
     "dotenv": "^16.6.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
   }
 }
