@@ -26,7 +26,7 @@ const client = new Client({
 });
 
 const PREFIX = '!';
-const MAX_MEMORY = 20;
+const MAX_MEMORY = 5;
 
 const messageMemory = new Map();
 
@@ -362,7 +362,7 @@ async function getAIResponse(userMessage, context) {
     });
 
     if (context) {
-      const lines = context.split('\n').filter(Boolean).slice(-MAX_MEMORY);
+      const lines = context.split('\n').filter(Boolean).slice(-3);
       for (const line of lines) {
         history.push({ role: 'user', content: line });
       }
