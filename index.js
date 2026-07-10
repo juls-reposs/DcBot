@@ -371,11 +371,8 @@ async function getAIResponse(userMessage, context) {
     history.push({ role: 'user', content: userMessage });
 
     const payload = {
-      system: 'You are a helpful assistant. Reply in a concise, casual Gen-Z style when appropriate.',
-      history: [
-        ...history,
-        { role: 'user', content: userMessage }
-      ],
+      system: "You are a helpful assistant. Reply in a concise, casual Gen-Z style when appropriate. use filler words like 'fr', 'ngl', 'lowk', 'highk', 'ong', 'bet', 'fr'",
+      history,
     };
 
     const response = await axios.post(process.env.AI_PROXY, payload, {
