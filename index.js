@@ -318,19 +318,42 @@ function getMessageContext(userId) {
 
 async function getAIResponse(userMessage, context) {
   try {
-    const response = await axios.post(process.env.AI_PROXY, {
-      message: userMessage,
-      context: context || 'new conversation',
+    const history = [];
+    history.push({
+      role: 'system',
+      content: 'You are a helpful assistant. Reply in a concise, casual Gen-Z style when appropriate.',
     });
 
-    let aiText = response.data.response || response.data.message || 'i have no idea what ur talking about fr';
+    if (context) {
+      const lines = context.split('\n').filter(Boolean).slice(-MAX_MEMORY);
+      for (const line of lines) {
+        history.push({ role: 'user', content: line });
+      }
+    }
 
-    // make it gen z style 
+    history.push({ role: 'user', content: userMessage });
+
+    const payload = {
+      message: userMessage,
+      history,
+    };
+
+    const response = await axios.post(process.env.AI_PROXY, payload, {
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 15000,
+    });
+
+    let aiText =
+      response.data?.response ||
+      response.data?.message ||
+      response.data?.text ||
+      'i have no idea what ur talking about fr';
+
     aiText = makeGenZ(aiText);
 
     return aiText;
   } catch (err) {
-    console.error('ai api error:', err.message);
+    console.error('ai api error:', err.response?.status, err.response?.data || err.message);
     throw err;
   }
 }
