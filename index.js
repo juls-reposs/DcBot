@@ -98,7 +98,7 @@ async function handleAIResponse(message) {
   } catch (err) {
     console.error('error getting ai response:', err);
     await message.reply({
-      content: 'bro something broke lmao',
+      content: 'something broke lol (AI HTTP ERROR)',
       allowedMentions: { repliedUser: false },
     });
   }
@@ -166,7 +166,7 @@ async function cmdDM(message, args) {
     };
 
     await message.reply({
-      content: `✓ dm sent to ${user.tag}`,
+      content: `dm sent to ${user.tag}`,
       allowedMentions: { repliedUser: false },
     });
   } catch (err) {
@@ -280,7 +280,7 @@ async function cmdClear(message) {
   try {
     messageMemory.delete(message.author.id);
     await message.reply({
-      content: `✓ cleared your ai memory`,
+      content: `lawliet memory bye bye`,
       allowedMentions: { repliedUser: false },
     });
   } catch (err) {
