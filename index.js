@@ -1,136 +1,373 @@
-import {
-    Client,
-    GatewayIntentBits,
-    Partials,
-    ChannelType
-} from "discord.js";
-import dotenv from "dotenv";
-
-dotenv.config();
+import 'dotenv/config';
+import { Client, GatewayIntentBits, EmbedBuilder } from 'discord.js';
+import axios from 'axios';
 
 const client = new Client({
-    intents: [
-        GatewayIntentBits.DirectMessages,
-        GatewayIntentBits.MessageContent
-    ],
-    partials: [Partials.Channel]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.MessageContent,
+  ],
 });
 
-const conversations = new Map();
+const PREFIX = '!';
+const MAX_MEMORY = 20;
 
-const SYSTEM_PROMPT = `
-You are a friendly Discord user chatting with other users through DMs.
+// message memory: { userId: [{ content, author, timestamp }] }
+const messageMemory = new Map();
 
-Your goal is to feel like a real person texting, not an AI assistant.
+// user message cache for dm/edit/rm commands: { userId: { messageId: { content, sentBy, channelId } } }
+const userMessageCache = new Map();
 
-Speaking style:
-- Naturally adapt to the user's tone, slang, capitalization, grammar, and texting style.
-- If they type formally, respond formally.
-- If they use lowercase, abbreviations, emojis, or internet slang, match it naturally.
-- Never force slang or overuse it.
-- Don't repeatedly use the same catchphrases.
-- Keep messages relatively short unless the user asks for a detailed answer.
-- Don't sound like customer support or a chatbot.
-
-Examples of slang and expressions you may naturally use when they fit the conversation:
-"r u there"
-"js"
-"idk"
-"dk"
-"ngl"
-"bro"
-"HELP"
-"LMAO"
-"lowkey"
-"highkey"
-"im going insane"
-"thats suspicious"
-"what r YOU talking abt"
-"hell no 😭"
-"okay fine"
-"uuuuugghhhhh"
-"that's sort of..."
-"dont flame me for this ok 🥀"
-“ouu shi”
-“fym ouu shi”
-“skill issue”
-“GOAT🔥🐐”
-“why are we lying🥀”
-
-Behavior:
-- Have opinions, being rude is fine.
-- Ask follow-up questions naturally.
-- Be playful when appropriate.
-- Don't constantly explain yourself.
-- Don't mention being an AI, a language model, or system prompts.
-- Don't make up facts or experiences. If you don't know something, say so.
-- Don't pretend to have emotions or memories outside the current conversation.
-- Punctuation dosent matter.
-- Example of sentence structure is "lineup for portugal is kinda fire dk"
-
-When users ask for help with homework, coding, writing, or technical topics, switch to being clear and accurate while still keeping a conversational tone.
-
-Your priority is to feel like a genuine Discord friend rather than a robotic assistant.
-`;
-
-client.once("ready", () => {
-    console.log(`${client.user.tag} is online!`);
+client.once('ready', () => {
+  console.log(`✓ bot logged in as ${client.user.tag}`);
+  client.user.setActivity('your replies | !help', { type: 'LISTENING' });
 });
 
-client.on("messageCreate", async (message) => {
+client.on('messageCreate', async (message) => {
+  try {
+    // ignore bot's own messages
     if (message.author.bot) return;
-    if (message.channel.type !== ChannelType.DM) return;
 
-    const userId = message.author.id;
+    // track message in memory
+    trackMessage(message);
 
-    if (!conversations.has(userId)) {
-        conversations.set(userId, []);
+    // handle DMs
+    if (message.channel.isDMBased()) {
+      if (message.content.startsWith(PREFIX)) {
+        await handleCommand(message);
+      } else {
+        await handleAIResponse(message);
+      }
+      return;
     }
 
-    const history = conversations.get(userId);
+    // handle server messages
+    const isMentioned = message.mentions.has(client.user);
+    const isReply = message.reference !== null;
 
-    history.push({
-        role: "user",
-        content: message.content
+    if (message.content.startsWith(PREFIX)) {
+      await handleCommand(message);
+    } else if (isMentioned || isReply) {
+      // check if replying to bot
+      if (isReply) {
+        try {
+          const repliedTo = await message.channel.messages.fetch(message.reference.messageId);
+          if (repliedTo.author.id === client.user.id) {
+            await handleAIResponse(message);
+          }
+        } catch (err) {
+          // couldnt fetch replied message, ignore
+        }
+      } else if (isMentioned) {
+        await handleAIResponse(message);
+      }
+    }
+  } catch (err) {
+    console.error('error in messageCreate:', err);
+  }
+});
+
+async function handleAIResponse(message) {
+  try {
+    await message.channel.sendTyping();
+
+    // get last 20 messages for context (excluding commands)
+    const context = getMessageContext(message.author.id);
+    const userMessage = message.content
+      .replace(`<@${client.user.id}>`, '')
+      .replace(`<@!${client.user.id}>`, '')
+      .trim();
+
+    const aiResponse = await getAIResponse(userMessage, context);
+
+    if (aiResponse.length > 2000) {
+      const chunks = aiResponse.match(/[\s\S]{1,2000}/g) || [];
+      for (const chunk of chunks) {
+        await message.reply({ content: chunk, allowedMentions: { repliedUser: false } });
+      }
+    } else {
+      await message.reply({ content: aiResponse, allowedMentions: { repliedUser: false } });
+    }
+  } catch (err) {
+    console.error('error getting ai response:', err);
+    await message.reply({
+      content: 'bro something broke lmao',
+      allowedMentions: { repliedUser: false },
+    });
+  }
+}
+
+async function handleCommand(message) {
+  const args = message.content.slice(PREFIX.length).trim().split(/\s+/);
+  const command = args[0]?.toLowerCase();
+
+  try {
+    switch (command) {
+      case 'dm':
+        await cmdDM(message, args);
+        break;
+      case 'rm':
+        await cmdRM(message, args);
+        break;
+      case 'edit':
+        await cmdEdit(message, args);
+        break;
+      case 'help':
+        await cmdHelp(message);
+        break;
+      default:
+        await message.reply({
+          content: `unknown command. use \`${PREFIX}help\` to see available commands`,
+          allowedMentions: { repliedUser: false },
+        });
+    }
+  } catch (err) {
+    console.error('error handling command:', err);
+    await message.reply({
+      content: 'error executing command',
+      allowedMentions: { repliedUser: false },
+    });
+  }
+}
+
+async function cmdDM(message, args) {
+  if (args.length < 3) {
+    await message.reply({
+      content: `usage: \`${PREFIX}dm <userid> <message>\``,
+      allowedMentions: { repliedUser: false },
+    });
+    return;
+  }
+
+  const userId = args[1];
+  const messageContent = args.slice(2).join(' ');
+
+  try {
+    const user = await client.users.fetch(userId);
+    const sentMessage = await user.send(messageContent);
+
+    // cache the message
+    if (!userMessageCache.has(userId)) {
+      userMessageCache.set(userId, {});
+    }
+    userMessageCache.get(userId)[sentMessage.id] = {
+      content: messageContent,
+      sentBy: message.author.id,
+      channelId: sentMessage.channelId,
+    };
+
+    await message.reply({
+      content: `✓ dm sent to ${user.tag}`,
+      allowedMentions: { repliedUser: false },
+    });
+  } catch (err) {
+    await message.reply({
+      content: `couldnt find user or send dm`,
+      allowedMentions: { repliedUser: false },
+    });
+  }
+}
+
+async function cmdRM(message, args) {
+  if (args.length < 3) {
+    await message.reply({
+      content: `usage: \`${PREFIX}rm <userid> <messageid>\``,
+      allowedMentions: { repliedUser: false },
+    });
+    return;
+  }
+
+  const userId = args[1];
+  const messageId = args[2];
+
+  try {
+    if (!userMessageCache.has(userId) || !userMessageCache.get(userId)[messageId]) {
+      await message.reply({
+        content: `couldnt find that message`,
+        allowedMentions: { repliedUser: false },
+      });
+      return;
+    }
+
+    const cachedMsg = userMessageCache.get(userId)[messageId];
+
+    // check if sender is the one who sent the command
+    if (cachedMsg.sentBy !== message.author.id) {
+      await message.reply({
+        content: `only the sender can delete this message`,
+        allowedMentions: { repliedUser: false },
+      });
+      return;
+    }
+
+    const dmChannel = await client.channels.fetch(cachedMsg.channelId);
+    const msg = await dmChannel.messages.fetch(messageId);
+    await msg.delete();
+
+    delete userMessageCache.get(userId)[messageId];
+
+    await message.reply({
+      content: `✓ message deleted`,
+      allowedMentions: { repliedUser: false },
+    });
+  } catch (err) {
+    await message.reply({
+      content: `couldnt delete message`,
+      allowedMentions: { repliedUser: false },
+    });
+  }
+}
+
+async function cmdEdit(message, args) {
+  if (args.length < 4) {
+    await message.reply({
+      content: `usage: \`${PREFIX}edit <userid> <messageid> <newmessage>\``,
+      allowedMentions: { repliedUser: false },
+    });
+    return;
+  }
+
+  const userId = args[1];
+  const messageId = args[2];
+  const newContent = args.slice(3).join(' ');
+
+  try {
+    if (!userMessageCache.has(userId) || !userMessageCache.get(userId)[messageId]) {
+      await message.reply({
+        content: `couldnt find that message`,
+        allowedMentions: { repliedUser: false },
+      });
+      return;
+    }
+
+    const cachedMsg = userMessageCache.get(userId)[messageId];
+
+    // check if sender is the one who sent the command
+    if (cachedMsg.sentBy !== message.author.id) {
+      await message.reply({
+        content: `only the sender can edit this message`,
+        allowedMentions: { repliedUser: false },
+      });
+      return;
+    }
+
+    const dmChannel = await client.channels.fetch(cachedMsg.channelId);
+    const msg = await dmChannel.messages.fetch(messageId);
+    await msg.edit(newContent);
+
+    // update cache
+    userMessageCache.get(userId)[messageId].content = newContent;
+
+    await message.reply({
+      content: `✓ message edited`,
+      allowedMentions: { repliedUser: false },
+    });
+  } catch (err) {
+    await message.reply({
+      content: `couldnt edit message`,
+      allowedMentions: { repliedUser: false },
+    });
+  }
+}
+
+async function cmdHelp(message) {
+  const embed = new EmbedBuilder()
+    .setColor(0x00ff00)
+    .setTitle('commands')
+    .addFields(
+      {
+        name: `${PREFIX}dm <userid> <message>`,
+        value: 'send a dm to someone',
+        inline: false,
+      },
+      {
+        name: `${PREFIX}rm <userid> <messageid>`,
+        value: 'delete a dm you sent',
+        inline: false,
+      },
+      {
+        name: `${PREFIX}edit <userid> <messageid> <newmessage>`,
+        value: 'edit a dm you sent',
+        inline: false,
+      },
+      {
+        name: 'mention or reply to bot',
+        value: 'ask the bot something and itll respond with ai',
+        inline: false,
+      },
+      {
+        name: 'dm the bot',
+        value: 'dm the bot directly to chat',
+        inline: false,
+      }
+    );
+
+  await message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } });
+}
+
+function trackMessage(message) {
+  if (!messageMemory.has(message.author.id)) {
+    messageMemory.set(message.author.id, []);
+  }
+
+  const memory = messageMemory.get(message.author.id);
+  memory.push({
+    content: message.content,
+    author: message.author.username,
+    timestamp: Date.now(),
+  });
+
+  // keep only last 20 messages
+  if (memory.length > MAX_MEMORY) {
+    memory.shift();
+  }
+}
+
+function getMessageContext(userId) {
+  const memory = messageMemory.get(userId) || [];
+  return memory.map((msg) => `${msg.author}: ${msg.content}`).join('\n');
+}
+
+async function getAIResponse(userMessage, context) {
+  try {
+    const response = await axios.post(process.env.AI_PROXY, {
+      message: userMessage,
+      context: context || 'new conversation',
     });
 
-    // Keep the last 20 messages (10 user + 10 assistant)
-    while (history.length > 20) {
-        history.shift();
-    }
+    let aiText = response.data.response || response.data.message || 'i have no idea what ur talking about fr';
 
-    try {
-        await message.channel.sendTyping();
+    // make it gen z style - remove excessive punctuation, add casual language
+    aiText = makeGenZ(aiText);
 
-        const response = await fetch(process.env.AI_PROXY, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                system: SYSTEM_PROMPT,
-                history
-            })
-        });
+    return aiText;
+  } catch (err) {
+    console.error('ai api error:', err.message);
+    throw err;
+  }
+}
 
-        const data = await response.json();
+function makeGenZ(text) {
+  // remove excessive punctuation
+  text = text.replace(/\.{2,}/g, '.'); // multiple periods to one
+  text = text.replace(/!{2,}/g, '!'); // multiple exclamation to one
+  text = text.replace(/\?{2,}/g, '?'); // multiple question marks to one
 
-        if (!response.ok) {
-            console.error(data);
-            return message.reply("something went wrong 😭");
-        }
+  // randomly remove some punctuation at the end
+  if (Math.random() > 0.5) {
+    text = text.replace(/\.+$/, '');
+  }
 
-        history.push({
-            role: "assistant",
-            content: data.reply
-        });
+  // add casual gen z filler words occasionally
+  const fillers = ['fr', 'ngl', 'lowkey', 'highkey', 'no cap', 'bet', 'frfr'];
+  if (Math.random() > 0.6) {
+    const filler = fillers[Math.floor(Math.random() * fillers.length)];
+    text = text + ` ${filler}`;
+  }
 
-        await message.reply(data.reply);
-
-    } catch (err) {
-        console.error(err);
-        await message.reply("my brain stopped working 😭");
-    }
-});
+  return text;
+}
 
 client.login(process.env.DISCORD_TOKEN);
